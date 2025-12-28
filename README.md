@@ -1,4 +1,17 @@
 # SamudraManthan - Autonomous Boat Monitoring System
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.7+-blue?style=for-the-badge&logo=python" />
+  <img src="https://img.shields.io/badge/Flask-Web-black?style=for-the-badge&logo=flask" />
+  <img src="https://img.shields.io/badge/ESP32-IoT-green?style=for-the-badge&logo=espressif" />
+  <img src="https://img.shields.io/badge/IoT-Enabled-success?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/HTML-5-orange?style=for-the-badge&logo=html5" />
+  <img src="https://img.shields.io/badge/CSS-3-blue?style=for-the-badge&logo=css3" />
+  <img src="https://img.shields.io/badge/JavaScript-ES6-yellow?style=for-the-badge&logo=javascript" />
+  <img src="https://img.shields.io/badge/REST-API-lightgrey?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/GPS-Tracking-orange?style=for-the-badge" />
+</p>
+
+
 
 A Flask-based web application for monitoring and controlling ESP32-powered autonomous boats with environmental sensing capabilities.
 
@@ -46,7 +59,7 @@ SamudraManthan/
 ### Setup
 1. Clone the repository:
 ```bash
-git clone <repository-url>
+git clone https://github.com/Umeshhakke/SamudraManthan.git
 cd SamudraManthan
 ```
 
@@ -301,9 +314,6 @@ docker run -p 5000:5000 samudramanthan
 4. Test thoroughly
 5. Submit a pull request
 
-## 📄 License
-
-[Add your license information here]
 
 ## 📞 Support
 
