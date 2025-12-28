@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Autonomous Ocean Oil Cleaning Bot</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+<style>
+body { margin:0; background:#020617; color:white; font-family:Arial }
+#map { height:80vh }
+.panel { padding:10px; display:flex; gap:6px }
+input,button { padding:6px; border-radius:5px; border:none }
+button { background:#0ea5e9; cursor:pointer }
+</style>
+</head>
+
+<body>
+
+<div class="panel">
+  <input id="lat" placeholder="Latitude">
+  <input id="lng" placeholder="Longitude">
+  <button onclick="addPoint()">Add Spill Point</button>
+  <button onclick="startMission()">Start Cleaning</button>
+  <button onclick="clearPoints()">Clear</button>
+</div>
+
+<div id="map"></div>
+<div id="status">Status: IDLE</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+/* ================= CONFIG ================= */
+const BASE = [13.0, 85.0];
+const CLEANING_STEP = 0.05; // coverage density
+
+/* ================= MAP ================= */
+const map = L.map('map').setView(BASE, 6);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png').addTo(map);
+
+/* ================= GLOBALS ================= */
+let points = [];
+let markers = [];
+let hull = [];
+let hullPolygon = null;
+let path = [];
+let index = 0;
+
+const boat = L.marker(BASE).addTo(map);
+
+/* ================= QUICK HULL ================= */
+function quickHull(pts) {
+  if (pts.length < 3) return pts;
+
+  const cross = (o,a,b)=>(a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0]);
+
+  let left = pts.reduce((a,b)=>a[1]<b[1]?a:b);
+  let right = pts.reduce((a,b)=>a[1]>b[1]?a:b);
+  let hull=[];
+
+  function build(a,b,set){
+    let max=null, dist=0;
+    set.forEach(p=>{
+      let d=Math.abs(cross(a,b,p));
+      if(d>dist){dist=d;max=p;}
+    });
+    if(!max){ hull.push(a); return; }
+    build(a,max,set.filter(p=>cross(a,max,p)>0));
+    build(max,b,set.filter(p=>cross(max,b,p)>0));
+  }
+
+  build(left,right,pts.filter(p=>cross(left,right,p)>0));
+  build(right,left,pts.filter(p=>cross(right,left,p)>0));
+  return hull;
+}
+
+/* ================= POINT IN POLYGON ================= */
+function isPointInPolygon(p, poly) {
+  let inside=false;
+  for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+    let xi=poly[i][0], yi=poly[i][1];
+    let xj=poly[j][0], yj=poly[j][1];
+    let intersect=((yi>p[1])!=(yj>p[1])) &&
+      (p[0]<(xj-xi)*(p[1]-yi)/(yj-yi)+xi);
+    if(intersect) inside=!inside;
+  }
+  return inside;
+}
+
+/* ================= ADD POINT ================= */
+const latInput=document.getElementById("lat");
+const lngInput=document.getElementById("lng");
+
+function addPoint(lat,lng){
+  if(lat===undefined){
+    lat=parseFloat(latInput.value);
+    lng=parseFloat(lngInput.value);
+  }
+  if(isNaN(lat)||isNaN(lng)) return;
+
+  points.push([lat,lng]);
+  markers.push(L.circleMarker([lat,lng],{radius:5,color:'red'}).addTo(map));
+  updateHull();
+}
+
+map.on('click',e=>addPoint(e.latlng.lat,e.latlng.lng));
+
+/* ================= UPDATE HULL ================= */
+function updateHull(){
+  if(hullPolygon) map.removeLayer(hullPolygon);
+  hull=quickHull(points);
+  if(hull.length>=3){
+    hullPolygon=L.polygon(hull,{color:'#38bdf8',fillOpacity:0.2}).addTo(map);
+  }
+}
+
+/* ================= GENERATE FULL COVERAGE ================= */
+function generateCoverage(hull){
+  let lats=hull.map(p=>p[0]);
+  let lngs=hull.map(p=>p[1]);
+
+  let minLat=Math.min(...lats), maxLat=Math.max(...lats);
+  let minLng=Math.min(...lngs), maxLng=Math.max(...lngs);
+
+  let coverage=[];
+  for(let lat=minLat;lat<=maxLat;lat+=CLEANING_STEP){
+    for(let lng=minLng;lng<=maxLng;lng+=CLEANING_STEP){
+      let p=[lat,lng];
+      if(isPointInPolygon(p,hull)) coverage.push(p);
+    }
+  }
+  return coverage;
+}
+
+/* ================= ZIGZAG SWEEP ================= */
+function zigZag(points){
+  let rows={};
+  points.forEach(p=>{
+    let k=p[0].toFixed(3);
+    rows[k]=rows[k]||[];
+    rows[k].push(p);
+  });
+
+  return Object.keys(rows).sort((a,b)=>a-b).flatMap((r,i)=>{
+    let row=rows[r].sort((a,b)=>a[1]-b[1]);
+    return i%2?row.reverse():row;
+  });
+}
+
+/* ================= START CLEANING ================= */
+function startMission(){
+  if(hull.length<3) return alert("Define oil area first");
+  document.getElementById("status").innerText="Status: CLEANING";
+
+  path=zigZag(generateCoverage(hull));
+  console.log("TOTAL CLEANING POINTS:",path.length);
+
+  path.forEach(p=>L.circleMarker(p,{radius:2,color:'lime',opacity:0.5}).addTo(map));
+
+  index=0;
+  moveBoat();
+}
+
+/* ================= MOVE ================= */
+function moveBoat(){
+  if(index>=path.length){
+    document.getElementById("status").innerText="Status: COMPLETE";
+    animateMove(BASE);
+    return;
+  }
+  animateMove(path[index],()=>{index++;moveBoat();});
+}
+
+/* ================= ANIMATE ================= */
+function animateMove(target,done){
+  let start=boat.getLatLng(), t=0;
+  let timer=setInterval(()=>{
+    t+=0.03;
+    if(t>=1){clearInterval(timer);boat.setLatLng(target);done&&done();}
+    else boat.setLatLng([
+      start.lat+(target[0]-start.lat)*t,
+      start.lng+(target[1]-start.lng)*t
+    ]);
+  },100);
+}
+
+/* ================= CLEAR ================= */
+function clearPoints(){
+  markers.forEach(m=>map.removeLayer(m));
+  if(hullPolygon) map.removeLayer(hullPolygon);
+  points=[]; markers=[]; hull=[]; path=[];
+  document.getElementById("status").innerText="Status: IDLE";
+}
+</script>
+
+</body>
+</html>
