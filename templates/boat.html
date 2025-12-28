@@ -1,0 +1,1236 @@
+<!-- <!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Boat Dashboard</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<style>
+:root{
+  --bg:#EFFAFD;
+  --primary:#4A8BDF;
+  --alert:#A0006D;
+  --text:#0A2540;
+}
+
+body{
+  margin:0;
+  font-family:Segoe UI, system-ui;
+  background:var(--bg);
+  color:var(--text);
+  transition: background 0.3s ease;
+}
+
+.header{
+  background:var(--primary);
+  color:white;
+  padding:18px;
+  font-size:24px;
+  font-weight:600;
+  text-align:center;
+}
+
+.row{
+  display:flex;
+  gap:14px;
+  padding:14px;
+  flex-wrap:wrap;
+}
+
+.card{
+  flex:1;
+  min-width:200px;
+  background:white;
+  padding:18px;
+  border-radius:14px;
+  box-shadow:0 4px 10px rgba(0,0,0,0.08);
+  text-align:center;
+}
+
+.alert{
+  background:var(--alert);
+  color:white;
+  padding:16px;
+  border-radius:12px;
+  font-weight:700;
+  margin:14px;
+  text-align:center;
+  display:none;
+}
+
+#map{
+  height:280px;
+  border-radius:12px;
+}
+
+.camera{
+  width:100%;
+  border-radius:12px;
+  border:2px solid var(--primary);
+}
+
+.thruster{
+  position:relative;
+  width:60px;
+  height:260px;
+  background:#E6F2FA;
+  border-radius:30px;
+  margin:16px auto;
+  overflow:hidden;
+  touch-action:none;
+  border:2px solid var(--primary);
+}
+
+.flame{
+  position:absolute;
+  bottom:0;
+  width:100%;
+  height:0%;
+  background:linear-gradient(to top,var(--alert),var(--primary));
+  box-shadow:0 0 20px rgba(160,0,109,0.6);
+  transition:height 0.08s linear;
+}
+
+.handle{
+  position:absolute;
+  top:8px;
+  left:50%;
+  transform:translateX(-50%);
+  width:44px;
+  height:12px;
+  background:var(--primary);
+  border-radius:6px;
+  cursor:grab;
+  box-shadow:0 3px 8px rgba(0,0,0,0.35);
+}
+.thruster:active .handle{cursor:grabbing;}
+.handle::before, .handle::after{
+  content:"";
+  position:absolute;
+  top:3px;
+  width:6px;
+  height:6px;
+  background:#EFFAFD;
+  border-radius:50%;
+}
+.handle::before{ left:12px; }
+.handle::after{ right:12px; }
+
+.label{margin-top:12px;font-weight:600;color:#334155;}
+
+@media(max-width:800px){ .row{flex-direction:column;} }
+
+.top-bar {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  background:#4d4e50;
+  color:white;
+  padding:12px 20px;
+  border-radius:12px;
+  margin-bottom:15px;
+}
+
+.switch {
+  position: relative;
+  width: 50px;
+  height: 26px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position:absolute;
+  cursor:pointer;
+  top:0; left:0; right:0; bottom:0;
+  background:#ccc;
+  transition:.4s;
+  border-radius:30px;
+}
+
+.slider:before {
+  position:absolute;
+  content:"";
+  height:20px;
+  width:20px;
+  left:3px;
+  bottom:3px;
+  background:white;
+  transition:.4s;
+  border-radius:50%;
+}
+
+input:checked + .slider {
+  background:#4CAF50;
+}
+
+input:checked + .slider:before {
+  transform:translateX(24px);
+}
+
+</style>
+</head>
+
+<body>
+<div class="top-bar">
+  <span id="sysText">Automated</span>
+  <label class="switch">
+    <input type="checkbox" id="systemToggle" onchange="toggleSystem()">
+    <span class="slider"></span>
+  </label>
+</div>
+<div class="header">
+🚤 Boat #01 – Live Monitoring
+</div>
+
+<div class="row">
+  <div class="card"><b>Turbidity</b><br><span id="turbidity">---</span></div>
+  <div class="card"><b>IR Sensor</b><br><span id="ir">---</span></div>
+</div>
+
+<div class="row">
+  <div class="card"><b>Temperature</b><br><span id="temp">---</span></div>
+  <div class="card"><b>Humidity</b><br><span id="hum">---</span></div>
+</div>
+
+<div class="alert" id="oil-alert">🚨 OIL SPILL DETECTED</div>
+<div class="alert" id="waste-alert">🗑️ WASTE DETECTED – COLLECT</div>
+
+<div class="row">
+  <div class="card">
+    <h3>📍 Live Location</h3>
+    <div id="map"></div>
+  </div>
+
+  <div class="card">
+    <h3>📷 Live Camera Feed</h3>
+    <img class="camera" src="http://CAMERA_IP:81/stream" alt="Live Camera Feed">
+  </div>
+</div>
+
+<div class="row">
+  <div class="card">
+    <h3>🚀 Thruster 1</h3>
+    <div class="thruster" data-motor="1">
+      <div class="flame" id="f1"></div>
+      <div class="handle"></div>
+    </div>
+    <div class="label">Left Thruster</div>
+  </div>
+
+  <div class="card">
+    <h3>🚀 Thruster 2</h3>
+    <div class="thruster" data-motor="2">
+      <div class="flame" id="f2"></div>
+      <div class="handle"></div>
+    </div>
+    <div class="label">Right Thruster</div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+let map = L.map('map').setView([0,0],15);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+let marker = L.marker([0,0]).addTo(map);
+
+let blinkInterval = null;
+
+// ===== FUNCTION TO UPDATE DASHBOARD FROM SERVER =====
+function updateDashboard(data){
+  document.getElementById("turbidity").innerText = data.turbidity;
+  document.getElementById("ir").innerText = data.ir;
+  document.getElementById("temp").innerText = data.temp;
+  document.getElementById("hum").innerText = data.hum;
+
+  // Update map
+  map.setView([data.lat, data.lon], 15);
+  marker.setLatLng([data.lat, data.lon]);
+
+  // Oil alert
+  if(data.oil){
+    document.getElementById("oil-alert").style.display="block";
+    startBlink("#A0006D");
+  } else {
+    document.getElementById("oil-alert").style.display="none";
+  }
+
+  // Waste alert
+  if(data.waste){
+    document.getElementById("waste-alert").style.display="block";
+    startBlink("#4A8BDF");
+  } else {
+    document.getElementById("waste-alert").style.display="none";
+  }
+
+  // Update thrusters
+  document.getElementById("f1").style.height = data.thruster1+"%";
+  document.getElementById("f2").style.height = data.thruster2+"%";
+}
+
+// ===== BLINK LOGIC =====
+function startBlink(color){
+  if(blinkInterval) clearInterval(blinkInterval);
+  let visible = true;
+  blinkInterval = setInterval(()=>{
+    document.body.style.background = visible ? color : "#EFFAFD";
+    visible = !visible;
+  },1000);
+}
+
+// ===== THRUSTER CONTROL =====
+document.querySelectorAll(".thruster").forEach(thruster=>{
+  thruster.addEventListener("pointerdown", updateThrust);
+  thruster.addEventListener("pointermove", updateThrust);
+  function updateThrust(e){
+    if(e.buttons!==1 && e.type==="pointermove") return;
+    const rect = thruster.getBoundingClientRect();
+    let y = e.clientY - rect.top;
+    let percent = 100 - (y/rect.height)*100;
+    percent = Math.max(0,Math.min(100,percent));
+    const motor = thruster.dataset.motor;
+    document.getElementById("f"+motor).style.height = percent+"%";
+
+    // Send to server
+    fetch("/motor",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({motor: motor, value: Math.round(percent)})
+    });
+  }
+});
+
+// ===== FETCH DATA PERIODICALLY =====
+setInterval(()=>{
+  fetch('/status')
+    .then(res=>res.json())
+    .then(data=>{
+      updateDashboard(data);
+    });
+},1000);
+</script>
+<script>
+function toggleSystem() {
+  const toggle = document.getElementById("systemToggle");
+  const state = toggle.checked;
+  document.getElementById("sysText").innerText = state ? "Manual override" : "Automated";
+}
+</script>
+
+</body>
+</html> -->
+
+<!--
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Boat Dashboard</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+
+<style>
+:root{
+  --bg:#EFFAFD;
+  --primary:#4A8BDF;
+  --alert:#A0006D;
+  --ok:#2ECC71;
+  --text:#0A2540;
+}
+
+body{
+  margin:0;
+  font-family:Segoe UI, system-ui;
+  background:var(--bg);
+  color:var(--text);
+}
+
+/* ---------- TOP BAR ---------- */
+.top-bar{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  background:#374151;
+  color:white;
+  padding:12px 18px;
+}
+
+.switch{
+  position:relative;
+  width:52px;
+  height:26px;
+}
+.switch input{ display:none; }
+
+.slider{
+  position:absolute;
+  inset:0;
+  background:#9CA3AF;
+  border-radius:30px;
+  cursor:pointer;
+  transition:.3s;
+}
+.slider::before{
+  content:"";
+  position:absolute;
+  width:20px;
+  height:20px;
+  left:3px;
+  top:3px;
+  background:white;
+  border-radius:50%;
+  transition:.3s;
+}
+input:checked + .slider{
+  background:#10B981;
+}
+input:checked + .slider::before{
+  transform:translateX(26px);
+}
+
+/* ---------- HEADER ---------- */
+.header{
+  background:var(--primary);
+  color:white;
+  padding:18px;
+  text-align:center;
+  font-size:24px;
+  font-weight:600;
+}
+
+/* ---------- LAYOUT ---------- */
+.row{
+  display:flex;
+  gap:16px;
+  padding:16px;
+  flex-wrap:wrap;
+}
+.card{
+  flex:1;
+  min-width:200px;
+  background:white;
+  padding:16px;
+  border-radius:14px;
+  box-shadow:0 4px 10px rgba(0,0,0,.1);
+  text-align:center;
+}
+
+.alert{
+  display:none;
+  margin:12px;
+  padding:14px;
+  border-radius:12px;
+  color:white;
+  font-weight:700;
+  text-align:center;
+}
+.oil{ background:var(--alert); }
+.waste{ background:#2563EB; }
+
+/* ---------- MAP & CAMERA ---------- */
+#map{
+  height:280px;
+  border-radius:12px;
+}
+.camera{
+  width:100%;
+  border-radius:12px;
+  border:2px solid var(--primary);
+}
+
+/* ---------- THRUSTER ---------- */
+.thruster{
+  position:relative;
+  width:60px;
+  height:260px;
+  background:#E6F2FA;
+  border-radius:30px;
+  margin:12px auto;
+  overflow:hidden;
+  touch-action:none;
+  border:2px solid var(--primary);
+}
+.flame{
+  position:absolute;
+  bottom:0;
+  width:100%;
+  height:0%;
+  background:linear-gradient(to top,var(--alert),var(--primary));
+  transition:.08s linear;
+}
+.handle{
+  position:absolute;
+  top:8px;
+  left:50%;
+  transform:translateX(-50%);
+  width:44px;
+  height:12px;
+  background:var(--primary);
+  border-radius:6px;
+  cursor:grab;
+}
+.thruster:active .handle{ cursor:grabbing; }
+
+@media(max-width:800px){
+  .row{ flex-direction:column; }
+}
+</style>
+</head>
+
+<body>
+
+
+<div class="top-bar">
+  <span id="modeText">AUTOMATED</span>
+  <label class="switch">
+    <input type="checkbox" id="modeToggle">
+    <span class="slider"></span>
+  </label>
+</div>
+
+
+<div class="header">
+🚤 Boat {{ bid }} – Live Dashboard
+</div>
+
+<div class="row">
+  <div class="card"><b>Turbidity</b><br><span id="turbidity">---</span></div>
+  <div class="card"><b>IR Sensor</b><br><span id="ir">---</span></div>
+</div>
+
+<div class="row">
+  <div class="card"><b>Temperature</b><br><span id="temp">---</span></div>
+  <div class="card"><b>Humidity</b><br><span id="hum">---</span></div>
+</div>
+
+<div class="alert oil" id="oilAlert">🚨 OIL SPILL DETECTED</div>
+<div class="alert waste" id="wasteAlert">🗑️ WASTE DETECTED</div>
+
+<div class="row">
+  <div class="card">
+    <h3>📍 Live Location</h3>
+    <div id="map"></div>
+  </div>
+  <div class="card">
+    <h3>📷 Camera Feed</h3>
+    <img class="camera" src="http://CAMERA_IP:81/stream">
+  </div>
+</div>
+
+<div class="row">
+  <div class="card">
+    <h3>🚀 Thruster 1</h3>
+    <div class="thruster" data-motor="1">
+      <div class="flame" id="f1"></div>
+      <div class="handle"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>🚀 Thruster 2</h3>
+    <div class="thruster" data-motor="2">
+      <div class="flame" id="f2"></div>
+      <div class="handle"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+const BOAT_ID = "{{ bid }}";
+
+/* ===== MAP ===== */
+const map = L.map('map').setView([0,0],15);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+const marker = L.marker([0,0]).addTo(map);
+
+/* ===== THRUSTER CONTROL ===== */
+document.querySelectorAll(".thruster").forEach(t=>{
+  t.addEventListener("pointerdown",move);
+  t.addEventListener("pointermove",move);
+
+  function move(e){
+    if(e.buttons!==1 && e.type==="pointermove") return;
+    if(!document.getElementById("modeToggle").checked) return;
+
+    const r=t.getBoundingClientRect();
+    let p=100-( (e.clientY-r.top)/r.height )*100;
+    p=Math.max(0,Math.min(100,p));
+    const m=t.dataset.motor;
+    document.getElementById("f"+m).style.height=p+"%";
+
+    fetch("/motor",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({boat:BOAT_ID,motor:m,value:Math.round(p)})
+    });
+  }
+});
+
+/* ===== LIVE UPDATE ===== */
+function updateUI(d){
+  if(!d) return;
+  turbidity.innerText=d.turbidity;
+  ir.innerText=d.ir;
+  temp.innerText=d.temperature;
+  hum.innerText=d.humidity;
+
+  oilAlert.style.display=d.oil?"block":"none";
+  wasteAlert.style.display=d.waste?"block":"none";
+
+  if(d.lat && d.lon){
+    map.setView([d.lat,d.lon],15);
+    marker.setLatLng([d.lat,d.lon]);
+  }
+
+  f1.style.height=d.thruster1+"%";
+  f2.style.height=d.thruster2+"%";
+}
+
+setInterval(()=>{
+  fetch(`/status/${BOAT_ID}`)
+    .then(r=>r.json())
+    .then(updateUI);
+},1000);
+
+/* ===== MODE TOGGLE ===== */
+modeToggle.onchange=()=>{
+  modeText.innerText = modeToggle.checked ? "AUTOMATED" : "MANUAL OVERRIDE";
+};
+</script>
+
+</body>
+</html>
+-->
+<!--
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Boat Dashboard</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+
+<style>
+:root{
+  --bg:#EFFAFD;
+  --primary:#4A8BDF;
+  --alert:#A0006D;
+  --ok:#2ECC71;
+  --text:#0A2540;
+}
+
+body{
+  margin:0;
+  font-family:Segoe UI, system-ui;
+  background:var(--bg);
+  color:var(--text);
+}
+
+/* ---------- TOP BAR ---------- */
+.top-bar{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  background:#374151;
+  color:white;
+  padding:12px 18px;
+}
+
+.switch{
+  position:relative;
+  width:52px;
+  height:26px;
+}
+.switch input{ display:none; }
+
+.slider{
+  position:absolute;
+  inset:0;
+  background:#9CA3AF;
+  border-radius:30px;
+  cursor:pointer;
+  transition:.3s;
+}
+.slider::before{
+  content:"";
+  position:absolute;
+  width:20px;
+  height:20px;
+  left:3px;
+  top:3px;
+  background:white;
+  border-radius:50%;
+  transition:.3s;
+}
+input:checked + .slider{
+  background:#10B981;
+}
+input:checked + .slider::before{
+  transform:translateX(26px);
+}
+
+/* ---------- HEADER ---------- */
+.header{
+  background:var(--primary);
+  color:white;
+  padding:18px;
+  text-align:center;
+  font-size:24px;
+  font-weight:600;
+}
+
+/* ---------- LAYOUT ---------- */
+.row{
+  display:flex;
+  gap:16px;
+  padding:16px;
+  flex-wrap:wrap;
+}
+.card{
+  flex:1;
+  min-width:200px;
+  background:white;
+  padding:16px;
+  border-radius:14px;
+  box-shadow:0 4px 10px rgba(0,0,0,.1);
+  text-align:center;
+}
+
+.alert{
+  display:none;
+  margin:12px;
+  padding:14px;
+  border-radius:12px;
+  color:white;
+  font-weight:700;
+  text-align:center;
+}
+.oil{ background:var(--alert); }
+.waste{ background:#2563EB; }
+
+/* ---------- MAP & CAMERA ---------- */
+#map{
+  height:280px;
+  border-radius:12px;
+}
+.camera{
+  width:100%;
+  border-radius:12px;
+  border:2px solid var(--primary);
+}
+
+/* ---------- THRUSTER ---------- */
+.thruster{
+  position:relative;
+  width:60px;
+  height:260px;
+  background:#E6F2FA;
+  border-radius:30px;
+  margin:12px auto;
+  overflow:hidden;
+  touch-action:none;
+  border:2px solid var(--primary);
+}
+.flame{
+  position:absolute;
+  bottom:0;
+  width:100%;
+  height:0%;
+  background:linear-gradient(to top,var(--alert),var(--primary));
+  transition:.08s linear;
+}
+.handle{
+  position:absolute;
+  top:8px;
+  left:50%;
+  transform:translateX(-50%);
+  width:44px;
+  height:12px;
+  background:var(--primary);
+  border-radius:6px;
+  cursor:grab;
+}
+.thruster:active .handle{ cursor:grabbing; }
+
+.label{
+  margin-top:8px;
+  font-weight:600;
+  color:#334155;
+}
+
+@media(max-width:800px){
+  .row{ flex-direction:column; }
+}
+</style>
+</head>
+
+<body>
+
+<div class="top-bar">
+  <span id="modeText">AUTOMATED</span>
+  <label class="switch">
+    <input type="checkbox" id="modeToggle">
+    <span class="slider"></span>
+  </label>
+</div>
+
+<div class="header">
+🚤 Boat {{ bid }} – Live Dashboard
+</div>
+
+<div class="row">
+  <div class="card"><b>Turbidity</b><br><span id="turbidity">---</span></div>
+  <div class="card"><b>IR Sensor</b><br><span id="ir">---</span></div>
+</div>
+
+<div class="row">
+  <div class="card"><b>Temperature</b><br><span id="temp">---</span></div>
+  <div class="card"><b>Humidity</b><br><span id="hum">---</span></div>
+</div>
+
+<div class="alert oil" id="oilAlert">🚨 OIL SPILL DETECTED</div>
+<div class="alert waste" id="wasteAlert">🗑️ WASTE DETECTED</div>
+
+<div class="row">
+  <div class="card">
+    <h3>📍 Live Location</h3>
+    <div id="map"></div>
+  </div>
+  <div class="card">
+    <h3>📷 Camera Feed</h3>
+    <img class="camera" src="http://CAMERA_IP:81/stream">
+  </div>
+</div>
+
+<div class="row">
+  <div class="card">
+    <h3>🚀 Thruster 1</h3>
+    <div class="thruster" data-motor="1">
+      <div class="flame" id="f1"></div>
+      <div class="handle"></div>
+    </div>
+    <div class="label" id="thr1Label">0%</div>
+  </div>
+
+  <div class="card">
+    <h3>🚀 Thruster 2</h3>
+    <div class="thruster" data-motor="2">
+      <div class="flame" id="f2"></div>
+      <div class="handle"></div>
+    </div>
+    <div class="label" id="thr2Label">0%</div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+const BOAT_ID = "{{ bid }}";
+
+/* ===== MAP ===== */
+const map = L.map('map').setView([0,0],15);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+const marker = L.marker([0,0]).addTo(map);
+
+/* ===== THRUSTER CONTROL ===== */
+document.querySelectorAll(".thruster").forEach(t=>{
+  t.addEventListener("pointerdown",move);
+  t.addEventListener("pointermove",move);
+
+  function move(e){
+    if(e.buttons!==1 && e.type==="pointermove") return;
+
+    const manualMode = document.getElementById("modeToggle").checked;
+    if(!manualMode) return; // Only manual control if checked
+
+    const r = t.getBoundingClientRect();
+    let p = 100 - ((e.clientY - r.top)/r.height)*100;
+    p = Math.max(0, Math.min(100, p));
+    const m = t.dataset.motor;
+
+    document.getElementById("f"+m).style.height = p+"%";
+    document.getElementById("thr"+m+"Label").innerText = Math.round(p)+"%";
+
+    fetch("/motor",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({boat:BOAT_ID, motor:m, value:Math.round(p)})
+    });
+  }
+});
+
+/* ===== LIVE UPDATE ===== */
+function updateUI(d){
+  if(!d) return;
+
+  turbidity.innerText = d.turbidity;
+  ir.innerText = d.ir;
+  temp.innerText = d.temperature;
+  hum.innerText = d.humidity;
+
+  oilAlert.style.display = d.oil ? "block" : "none";
+  wasteAlert.style.display = d.waste ? "block" : "none";
+
+  if(d.lat && d.lon){
+    map.setView([d.lat,d.lon],15);
+    marker.setLatLng([d.lat,d.lon]);
+  }
+
+  // Thruster flames & labels updated for both modes
+  f1.style.height = d.thruster1+"%";
+  f2.style.height = d.thruster2+"%";
+  thr1Label.innerText = d.thruster1 + "%";
+  thr2Label.innerText = d.thruster2 + "%";
+}
+
+/* ===== FETCH DATA PERIODICALLY ===== */
+setInterval(()=>{
+  fetch(`/status/${BOAT_ID}`)
+    .then(r=>r.json())
+    .then(updateUI);
+},1000);
+
+/* ===== MODE TOGGLE ===== */
+modeToggle.onchange=()=>{
+  modeText.innerText = modeToggle.checked ? "MANUAL" : "AUTOMATED";
+};
+</script>
+</body>
+</html>
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Boat Dashboard</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    :root {
+      --bg: #EFFAFD;
+      --primary: #4A8BDF;
+      --alert: #A0006D;
+      --text: #0A2540;
+    }
+
+    body {
+      margin: 0;
+      font-family: Segoe UI, system-ui;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #374151;
+      color: white;
+      padding: 12px 18px;
+    }
+
+    .switch {
+      position: relative;
+      width: 52px;
+      height: 26px;
+    }
+
+    .switch input {
+      display: none;
+    }
+
+    .slider {
+      position: absolute;
+      inset: 0;
+      background: #9CA3AF;
+      border-radius: 30px;
+      cursor: pointer;
+      transition: .3s;
+    }
+
+    .slider::before {
+      content: "";
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      left: 3px;
+      top: 3px;
+      background: white;
+      border-radius: 50%;
+      transition: .3s;
+    }
+
+    input:checked+.slider {
+      background: #10B981;
+    }
+
+    input:checked+.slider::before {
+      transform: translateX(26px);
+    }
+
+    .header {
+      background: var(--primary);
+      color: white;
+      padding: 18px;
+      text-align: center;
+      font-size: 24px;
+      font-weight: 600;
+    }
+
+    .row {
+      display: flex;
+      gap: 16px;
+      padding: 16px;
+      flex-wrap: wrap;
+    }
+
+    .card {
+      flex: 1;
+      min-width: 200px;
+      background: white;
+      padding: 16px;
+      border-radius: 14px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, .1);
+      text-align: center;
+    }
+
+    .alert {
+      display: none;
+      margin: 12px;
+      padding: 14px;
+      border-radius: 12px;
+      color: white;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .oil {
+      background: var(--alert);
+    }
+
+    .waste {
+      background: #2563EB;
+    }
+
+    #map {
+      height: 280px;
+      border-radius: 12px;
+    }
+
+    .camera {
+      width: 100%;
+      border-radius: 12px;
+      border: 2px solid var(--primary);
+    }
+
+    .thruster {
+      position: relative;
+      width: 60px;
+      height: 260px;
+      background: #E6F2FA;
+      border-radius: 30px;
+      margin: 12px auto;
+      overflow: hidden;
+      touch-action: none;
+      border: 2px solid var(--primary);
+    }
+
+    .flame {
+      position: absolute;
+      bottom: 0;
+      width: 100%;
+      height: 0%;
+      background: linear-gradient(to top, var(--alert), var(--primary));
+      transition: .08s linear;
+    }
+
+    .handle {
+      position: absolute;
+      top: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 44px;
+      height: 12px;
+      background: var(--primary);
+      border-radius: 6px;
+      cursor: grab;
+    }
+
+    .thruster:active .handle {
+      cursor: grabbing;
+    }
+
+    .label {
+      margin-top: 8px;
+      font-weight: 600;
+      color: #334155;
+    }
+
+    @media(max-width:800px) {
+      .row {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="top-bar">
+    <span id="modeText"></span>
+    <label class="switch">
+      <input type="checkbox" id="modeToggle" >
+      <span class="slider"></span>
+    </label>
+  </div>
+
+  <div class="header">
+    🚤 Boat {{ bid }} – Live Dashboard
+  </div>
+
+  <div class="row">
+    <div class="card"><b>Turbidity</b><br><span id="turbidity">---</span></div>
+    <div class="card"><b>IR Sensor</b><br><span id="ir">---</span></div>
+  </div>
+  <div class="row">
+    <div class="card"><b>Temperature</b><br><span id="temp">---</span></div>
+    <div class="card"><b>Humidity</b><br><span id="hum">---</span></div>
+  </div>
+
+  <div class="alert oil" id="oilAlert">🚨 OIL SPILL DETECTED</div>
+  <div class="alert waste" id="wasteAlert">🗑️ WASTE DETECTED</div>
+
+  <div class="row">
+    <div class="card">
+      <h3>📍 Live Location</h3>
+      <div id="map"></div>
+    </div>
+    <div class="card">
+      <h3>📷 Camera Feed</h3><img class="camera" src="http://CAMERA_IP:81/stream">
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="card">
+      <h3>🚀 Thruster 1</h3>
+      <div class="thruster" data-motor="1">
+        <div class="flame" id="f1"></div>
+        <div class="handle"></div>
+      </div>
+      <div class="label" id="thr1Label">0%</div>
+    </div>
+    <div class="card">
+      <h3>🚀 Thruster 2</h3>
+      <div class="thruster" data-motor="2">
+        <div class="flame" id="f2"></div>
+        <div class="handle"></div>
+      </div>
+      <div class="label" id="thr2Label">0%</div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    const BOAT_ID = "{{ bid }}";
+    const map = L.map('map').setView([0, 0], 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    const marker = L.marker([0, 0]).addTo(map);
+
+    /* ===== THRUSTER CONTROL ===== */
+    document.querySelectorAll(".thruster").forEach(t => {
+      t.addEventListener("pointerdown", move);
+      t.addEventListener("pointermove", move);
+
+      function move(e) {
+        if (e.buttons !== 1 && e.type === "pointermove") return;
+
+        // Allow thruster control in both manual and automated modes
+        // In automated mode, this provides manual override capability
+
+        const r = t.getBoundingClientRect();
+        let p = 100 - ((e.clientY - r.top) / r.height) * 100;
+        p = Math.max(0, Math.min(100, p));
+        const m = t.dataset.motor;
+
+        // Update UI immediately
+        document.getElementById("f" + m).style.height = p + "%";
+        document.getElementById("thr" + m + "Label").innerText = Math.round(p) + "%";
+
+        // Send to server with error handling
+        fetch("/motor", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ boat: BOAT_ID, motor: m, value: Math.round(p) })
+        })
+          .then(r => r.json())
+          .then(response => {
+            console.log("Thruster update response:", response);
+          })
+          .catch(error => {
+            console.error("Thruster update failed:", error);
+          });
+      }
+    });
+
+    /* ===== LIVE UPDATE ===== */
+    function updateUI(d) {
+      if (!d) return;
+
+      turbidity.innerText = d.turbidity || "---";
+      ir.innerText = d.ir || "---";
+      temp.innerText = d.temperature || "---";
+      hum.innerText = d.humidity || "---";
+
+      oilAlert.style.display = d.oil ? "block" : "none";
+      wasteAlert.style.display = d.waste ? "block" : "none";
+
+      if (d.lat && d.lon) {
+        map.setView([d.lat, d.lon], 15);
+        marker.setLatLng([d.lat, d.lon]);
+      }
+
+      // Always update thruster display from server data
+      // This ensures ESP32 and web interface stay synchronized
+      if (d.thruster1 !== undefined) {
+        f1.style.height = d.thruster1 + "%";
+        thr1Label.innerText = d.thruster1 + "%";
+      }
+      if (d.thruster2 !== undefined) {
+        f2.style.height = d.thruster2 + "%";
+        thr2Label.innerText = d.thruster2 + "%";
+      }
+    }
+
+    /* ===== FETCH DATA PERIODICALLY ===== */
+    setInterval(() => {
+      fetch(`/status/${BOAT_ID}`)
+        .then(r => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json();
+        })
+        .then(updateUI)
+        .catch(error => {
+          console.error("Status fetch failed:", error);
+        });
+    }, 1000);
+
+    /* ===== MODE TOGGLE ===== */
+    modeToggle.onchange = () => {
+      modeText.innerText = modeToggle.checked ? "MANUAL" : "AUTOMATED";
+    };
+
+    
+  </script>
+</body>
+
+</html>
